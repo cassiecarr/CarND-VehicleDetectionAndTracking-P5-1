@@ -10,24 +10,175 @@ import math
 import moviepy
 from moviepy.editor import VideoFileClip
 import glob
+import time
+from sklearn.svm import LinearSVC
+from sklearn.preprocessing import StandardScaler
+from skimage.feature import hog
+from sklearn.utils import shuffle
+from VehicleDetectionUtils import *
+from sklearn.model_selection import train_test_split
+from scipy.ndimage.measurements import label
+import pickle
+
+# Define the parameters for extract_features to determine spatial, histogram, and hog features
+color_space = 'HLS' # RGB, HSV, LUV, HLS, YUV, YCrCb
+orient = 8  # HOG orientations
+pix_per_cell = 8 # HOG pixels per cell
+cell_per_block = 2 # HOG cells per block
+hog_channel = 1 # Can be 0, 1, 2, or "ALL"
+spatial_size = (10, 10) # Spatial binning dimensions
+hist_bins = 8    # Number of histogram bins
+spatial_feat = True # Spatial features on or off
+hist_feat = True # Histogram features on or off
+hog_feat = True # HOG features on or off
+y_start_stop = [400, 620] # Min and max in y to search in slide_window()
+
+# # Read in cars and notcars
+# cars = []
+# notcars = []
+# images = glob.glob('test_images/non-vehicles/**/*.png')
+# for image in images:
+#     notcars.append(image)
+#     # notcars.append(image)
+# images = glob.glob('test_images/vehicles/**/*.png')
+# for image in images:
+#     cars.append(image)
+#     # cars.append(image)
+
+# # Even the dataset between cars and not cars
+# noncars = shuffle(notcars)
+# cars = shuffle(cars)
+# if len(cars) > len(notcars):
+# 	cars = cars[0:len(notcars)]
+# else:
+# 	notcars = notcars[0:len(cars)]
+
+# # Extract features
+# car_features = extract_features(cars, color_space=color_space, 
+#                         spatial_size=spatial_size, hist_bins=hist_bins, 
+#                         orient=orient, pix_per_cell=pix_per_cell, 
+#                         cell_per_block=cell_per_block, 
+#                         hog_channel=hog_channel, spatial_feat=spatial_feat, 
+#                         hist_feat=hist_feat, hog_feat=hog_feat)
+# notcar_features = extract_features(notcars, color_space=color_space, 
+#                         spatial_size=spatial_size, hist_bins=hist_bins, 
+#                         orient=orient, pix_per_cell=pix_per_cell, 
+#                         cell_per_block=cell_per_block, 
+#                         hog_channel=hog_channel, spatial_feat=spatial_feat, 
+#                         hist_feat=hist_feat, hog_feat=hog_feat)
+
+# # Shuffle
+# car_features = shuffle(car_features)
+# notcar_features = shuffle(notcar_features)
+
+# # Define the features vector
+# X = np.vstack((car_features, notcar_features)).astype(np.float64)                        
+# # Fit a per-column scaler
+# X_scaler = StandardScaler().fit(X)
+# # Apply the scaler to X
+# scaled_X = X_scaler.transform(X)
+# # Define the labels vector
+# y = np.hstack((np.ones(len(car_features)), np.zeros(len(notcar_features))))
+
+# # Split up data into randomized training and test sets
+# rand_state = np.random.randint(0, 100)
+# X_train, X_test, y_train, y_test = train_test_split(scaled_X, y, test_size=0.2, random_state=rand_state)
+
+# # Use a linear SVC, train, and print accuracy 
+# svc = LinearSVC()
+# svc.fit(X_train, y_train)
+
+# print('Train Accuracy of SVC = ', round(svc.score(X_train, y_train), 4))
+# print('Test Accuracy of SVC = ', round(svc.score(X_test, y_test), 4))
+
+# pickle.dump(svc, open( "svc.p", "wb" ))
+# pickle.dump(X_scaler, open( "scaler.p", "wb" ))
+
+
+svc = pickle.load(open( "svc.p", "rb" ))
+X_scaler = pickle.load(open( "scaler.p", "rb" ))
+
+buffer_num = 20
+previous_array = [[]] * buffer_num
 
 # Return color processed image with vehicle detection boxes overlaid
 def process_image(image):
 
-	return image
+	draw_image = np.copy(image)
+	xy_overlap = (0.7, 0.7)
+	windows_1 = slide_window(image, x_start_stop=[None, None], y_start_stop=y_start_stop, 
+                    		xy_window=(128, 128), xy_overlap=xy_overlap)
+	windows_2 = slide_window(image, x_start_stop=[None, None], y_start_stop=y_start_stop, 
+                    		xy_window=(96, 96), xy_overlap=xy_overlap)
+	windows_3 = slide_window(image, x_start_stop=[None, None], y_start_stop=y_start_stop, 
+                    		xy_window=(80, 80), xy_overlap=xy_overlap)
+	windows = windows_1 + windows_2 + windows_3
+	sized_image = image.astype(np.float32)/255
+	hot_windows = search_windows(sized_image, windows, svc, X_scaler, color_space=color_space, 
+	                        spatial_size=spatial_size, hist_bins=hist_bins, 
+	                        orient=orient, pix_per_cell=pix_per_cell, 
+	                        cell_per_block=cell_per_block, 
+	                        hog_channel=hog_channel, spatial_feat=spatial_feat, 
+	                        hist_feat=hist_feat, hog_feat=hog_feat)                      
+	all_hot_windows = hot_windows
+	# # buffer_num = np.array(previous_array).shape[0]
+	# for i in range(1, buffer_num):
+	# 	previous_array[buffer_num - i] = previous_array[buffer_num - i - 1]
+	# 	all_hot_windows = all_hot_windows + previous_array[buffer_num - i]
+	# previous_array[0] = hot_windows
+	
+	window_img = draw_boxes(draw_image, all_hot_windows, color=(0, 0, 255), thick=6)     
+
+	# mpimg.imsave((os.path.join("output_images/window_images/", filename)),window_img)               
+	
+	# ystart = y_start_stop[0]
+	# ystop = y_start_stop[1]
+	# scale = 1
+	# xy_window = [(96, 96), (64, 64)]
+	# xy_overlap = (0.6, 0.6)
+    
+	# hot_windows = find_cars(image, ystart, ystop, color_space, xy_window, xy_overlap, svc, X_scaler, orient, 
+	# 						pix_per_cell, cell_per_block, spatial_size, hist_bins, hog_channel)
+	# window_img = draw_boxes(draw_image, hot_windows, color=(0, 0, 255), thick=6) 
+
+	# Add heat to each box in box list
+	heat = np.zeros_like(image[:,:,0]).astype(np.float)
+
+	heat = add_heat(heat, all_hot_windows)
+
+	threshold = (np.array(all_hot_windows).shape[0]) // 9 + 1
+
+	heat = apply_threshold(heat, threshold)
+
+	# Visualize the heatmap when displaying    
+	heatmap = np.clip(heat, 0, 255)
+
+	# mpimg.imsave((os.path.join("output_images/heat_images/", filename)), heatmap)               
+
+	# Find final boxes from heatmap using label function
+	labels = label(heat)
+	box_image = draw_labeled_bboxes(np.copy(image), labels)
+
+	result = cv2.addWeighted(draw_image, 0.3, box_image, 1, 0)
+
+	return window_img
 
 # Process test images with process image function
 for filename in os.listdir("test_images/"):
     if filename.endswith(".jpg"): 
         # Identify the image
         image = mpimg.imread(os.path.join("test_images/", filename))
-        output = bound_process_image(image)
+        output = process_image(image)
 
         # Save the file as overlay
-        mpimg.imsave((os.path.join("output_images/test_images_with_lane_line_overlay/", filename)),output)
+        mpimg.imsave((os.path.join("output_images/", filename)),output)
 
-# Process video with process image function
-output = 'output.mp4'
-clip = VideoFileClip("project_video.mp4")
-output_clip = clip.fl_image(bound_process_image) 
-output_clip.write_videofile(output, audio=False)
+# # Process video with process image function
+# output = 'output.mp4'
+# clip = VideoFileClip("project_video.mp4")
+# sub_clip = clip.subclip(30, 45)
+# # first_clip = clip.to_ImageClip(t='00:30:00')
+# # processed_first_clip = process_image(first_clip)
+# output_clip = sub_clip.fl_image(process_image) 
+# output_clip.write_videofile(output, audio=False)
+
