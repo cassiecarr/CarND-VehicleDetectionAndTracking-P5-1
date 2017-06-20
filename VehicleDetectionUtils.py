@@ -33,12 +33,12 @@ def bin_spatial(img, size=(32, 32)):
 # NEED TO CHANGE bins_range if reading .png files with mpimg!
 def color_hist(img, nbins=32, bins_range=(0, 256)):
     # Compute the histogram of the color channels separately
-    channel1_hist = np.histogram(img[:,:,0], bins=nbins, range=bins_range)
-    channel2_hist = np.histogram(img[:,:,1], bins=nbins, range=bins_range)
-    channel3_hist = np.histogram(img[:,:,2], bins=nbins, range=bins_range)
+    histogram_image = np.copy(img)
+    channel1_hist = np.histogram(histogram_image[:,:,0], bins=nbins, range=bins_range)
+    channel2_hist = np.histogram(histogram_image[:,:,1], bins=nbins, range=bins_range)
+    channel3_hist = np.histogram(histogram_image[:,:,2], bins=nbins, range=bins_range)
     # Concatenate the histograms into a single feature vector
     hist_features = np.concatenate((channel1_hist[0], channel2_hist[0], channel3_hist[0]))
-    # Return the individual histograms, bin_centers and feature vector
     return hist_features
 
 # Define a function to extract features from a list of images
@@ -47,6 +47,7 @@ def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
                         hist_bins=32, orient=9, 
                         pix_per_cell=8, cell_per_block=2, hog_channel=0,
                         spatial_feat=True, hist_feat=True, hog_feat=True):
+
     # Create a list to append feature vectors to
     features = []
     # Iterate through the list of images
@@ -54,7 +55,9 @@ def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
         # Read in each one by one
         image_original = mpimg.imread(file)
         image_flipped = np.fliplr(image_original)
-        images = [image_original, image_flipped]
+        images = [image_original[:,:,:3], image_flipped[:,:,:3]]
+        # images = [image_original[:,:,:3]]
+
         for image in images:
         # apply color conversion if other than 'RGB'
           file_features = []
@@ -72,7 +75,7 @@ def extract_features(imgs, color_space='RGB', spatial_size=(32, 32),
           else: feature_image = np.copy(image)      
 
           if spatial_feat == True:
-              spatial_features = bin_spatial(feature_image, size=spatial_size)
+              spatial_features = bin_spatial(feature_image[:,:,2], size=spatial_size)
               file_features.append(spatial_features)
           if hist_feat == True:
               # Apply color_hist()
@@ -145,10 +148,10 @@ def single_img_features(img, color_space='RGB', spatial_size=(32, 32),
                         hist_bins=32, orient=9, 
                         pix_per_cell=8, cell_per_block=2, hog_channel=0,
                         spatial_feat=True, hist_feat=True, hog_feat=True):    
-    #1) Define an empty list to receive features
+    # Define an empty list to receive features
     img_features = []
     image = np.copy(img)
-    #2) Apply color conversion if other than 'RGB'
+    # Apply color conversion if other than 'RGB'
     if color_space != 'RGB':
         if color_space == 'HSV':
             feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
@@ -161,31 +164,31 @@ def single_img_features(img, color_space='RGB', spatial_size=(32, 32),
         elif color_space == 'YCrCb':
             feature_image = cv2.cvtColor(image, cv2.COLOR_RGB2YCrCb)
     else: feature_image = np.copy(image)      
-    #3) Compute spatial features if flag is set
+    # Compute spatial features if flag is set
     if spatial_feat == True:
-        spatial_features = bin_spatial(feature_image, size=spatial_size)
-        #4) Append features to list
+        spatial_features = bin_spatial(feature_image[:,:,2], size=spatial_size)
+        # Append features to list
         img_features.append(spatial_features)
-    #5) Compute histogram features if flag is set
+    # Compute histogram features if flag is set
     if hist_feat == True:
         hist_features = color_hist(feature_image, nbins=hist_bins)
-        #6) Append features to list
+        # Append features to list
         img_features.append(hist_features)
-    #7) Compute HOG features if flag is set
+    # Compute HOG features if flag is set
     if hog_feat == True:
         if hog_channel == 'ALL':
             hog_features = []
             for channel in range(feature_image.shape[2]):
-                hog_features.extend(get_hog_features(feature_image[:,:,channel], 
+                hog_features.append(get_hog_features(feature_image[:,:,channel], 
                                     orient, pix_per_cell, cell_per_block, 
-                                    vis=False, feature_vec=True))      
+                                    vis=False, feature_vec=True))
+            hog_features = np.ravel(hog_features)        
         else:
             hog_features = get_hog_features(feature_image[:,:,hog_channel], orient, 
                         pix_per_cell, cell_per_block, vis=False, feature_vec=True)
-        #8) Append features to list
         img_features.append(hog_features)
 
-    #9) Return concatenated array of features
+    # Return concatenated array of features
     return np.concatenate(img_features)
 
 # Define a function you will pass an image 
@@ -211,7 +214,7 @@ def search_windows(img, windows, clf, scaler, color_space='RGB',
                             hog_channel=hog_channel, spatial_feat=spatial_feat, 
                             hist_feat=hist_feat, hog_feat=hog_feat)
         #5) Scale extracted features to be fed to classifier
-        test_features = scaler.transform(np.array(features).reshape(1, -1))
+        test_features = scaler.transform(np.array(features).reshape(1, -1).astype(np.float64))
         #6) Predict using your classifier
         prediction = clf.predict(test_features)
         #7) If positive (prediction == 1) then save the window
@@ -463,24 +466,11 @@ def draw_labeled_bboxes(img, labels):
           else:
               bbox = bboxes[bbox_number]
           # Draw the box on the image
-          cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
+          if (abs(bbox[0][0] - bbox[1][0]) > 70) and (abs(bbox[0][1] - bbox[1][1]) > 70):
+              cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
           bbox_number = bbox_number + 1
-    else:
-      cv2.rectangle(img, bboxes[0][0], bboxes[0][1], (0,0,255), 6)
+    elif len(bboxes) == 1:
+      if (abs(bboxes[0][0][0] - bboxes[0][1][0]) > 70) and (abs(bboxes[0][0][1] - bboxes[0][1][1]) > 70):
+          cv2.rectangle(img, bboxes[0][0], bboxes[0][1], (0,0,255), 6)
     # Return the image
     return img
-
-# def draw_labeled_bboxes(img, labels):
-#     # Iterate through all detected cars
-#     for car_number in range(1, labels[1]+1):
-#         # Find pixels with each car_number label value
-#         nonzero = (labels[0] == car_number).nonzero()
-#         # Identify x and y values of those pixels
-#         nonzeroy = np.array(nonzero[0])
-#         nonzerox = np.array(nonzero[1])
-#         # Define a bounding box based on min/max x and y
-#         bbox = ((np.min(nonzerox), np.min(nonzeroy)), (np.max(nonzerox), np.max(nonzeroy)))
-#         # Draw the box on the image
-#         cv2.rectangle(img, bbox[0], bbox[1], (0,0,255), 6)
-#     # Return the image
-#     return img
