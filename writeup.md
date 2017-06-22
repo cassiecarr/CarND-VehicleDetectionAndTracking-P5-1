@@ -80,13 +80,13 @@ Here's a [link to my video result](./project_video.mp4)
 
 In line 134 of [VehicleDetection.py](VehicleDetection.py) 'hot_windows' are defined as the windows where vehicles are detected in the frame. In order to smooth out the vehicle bounding boxes and improve the robustness of the vehicle search, I created an array that saved the last 30 frame's 'hot_windows' and all of these windows were used to create a heatmap of the image. This can be found starting in line 141 of [VehicleDetection.py](VehicleDetection.py). A threshold is then applied to this heatmap in line 161. Then, in line 171, the 'draw_labeled_boxes' function is used to draw a single box on the image for each grouping on the heatmap. The details of this can be found in the 'draw_labeled_boxes' found on line 255 of [VehicleDetectionUtils.py](VehicleDetectionUtils.py), where the grouping of each looped though and drawn. If the groupings were found to be a certain distance away from each other, they were combined into one grouping. 
 
-### Here is the window image of one of the test images:
+##### Here is the window image of one of the test images:
 ![alt text][image5]
 
-### Here is the associated heatmap of that image:
+##### Here is the associated heatmap of that image:
 ![alt text][image6]
 
-### Here is the resulting bounding boxes drawn in the image:
+##### Here is the resulting bounding boxes drawn in the image:
 ![alt text][image7]
 
 ---
