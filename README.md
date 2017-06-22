@@ -15,8 +15,8 @@ The goals / steps of this project are the following:
 
 Project Files
 ---
-* [VehicleDetection.py](find_lane_lines.py) contains the main pipeline for training the dataset and processing the video to overlay the found vehicle windows.
-* [VehicleDetectionUtils.py](calibrate_camera.py) contains the functions used to extract features from images to train and test the dataset, in addition, functions to determine the windows and search windows for vehicles.
+* [VehicleDetection.py](VehicleDetection.py) contains the main pipeline for training the dataset and processing the video to overlay the found vehicle windows.
+* [VehicleDetectionUtils.py](VehicleDetectionUtils.py) contains the functions used to extract features from images to train and test the dataset, in addition, functions to determine the windows and search windows for vehicles.
 * [writeup.md](writeup.md) explains the results.
 
 
